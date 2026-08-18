@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,6 +32,12 @@ jobs:
         run: |
           ZIP_FILE=$(find . -maxdepth 1 -type f -name "*.zip" | head -n 1)
           echo "Found ZIP: $ZIP_FILE"
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ZIP file not found!"
+            exit 1
+          fi
+
           unzip -o "$ZIP_FILE"
 
       - name: Install Android SDK packages
@@ -44,8 +53,23 @@ jobs:
         working-directory: NextClassChip
         run: gradle assembleDebug --stacktrace
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Prepare APK
+        run: |
+          cp NextClassChip/app/build/outputs/apk/debug/app-debug.apk NextClassChip.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v7
         with:
           name: NextClassChip-APK
-          path: NextClassChip/app/build/outputs/apk/debug/app-debug.apk
+          path: NextClassChip.apk
+          if-no-files-found: error
+
+      - name: Publish APK to Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "build-${GITHUB_RUN_NUMBER}" \
+            NextClassChip.apk \
+            --target "${GITHUB_SHA}" \
+            --title "NextClassChip APK" \
+            --notes "Galaxy Tab S9 Ultra용 다음교시 상태바 알림 앱"
